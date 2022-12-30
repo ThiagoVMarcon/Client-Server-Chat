@@ -150,7 +150,7 @@ public class ChatServer
   }
 
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey key_source) throws IOException {
+  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource) throws IOException {
     // Read the message to the buffer
     buffer.clear();
     sc.read( buffer );
@@ -163,17 +163,19 @@ public class ChatServer
 
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
+    User actual = (User) keySource.attachment();
+
     processMessage(message);
     //System.out.print( message );
-    if (key_source.attachment() == null) {
-      key_source.attach(message);
-    } 
+    if (keySource.attachment() == null) {
+      keySource.attach(message);
+    }  
     else { 
       Set<SelectionKey> keys = selector.keys();
       Iterator<SelectionKey> it = keys.iterator();
       while(it.hasNext()) {
           SelectionKey key = it.next();
-          if (!key.isAcceptable()) {
+          if (!key.isAcceptable() && key != keySource) {
             sc = (SocketChannel) key.channel();
             buffer.rewind();
             sc.write(buffer);
@@ -191,7 +193,7 @@ public class ChatServer
       String command[] = message.split(" ", 2);
       switch(command[0]) {
         case "/nick":
-          // nick name function
+          // nick name function (command[1], sc, key)
           System.out.println("The nick is " + command[1]);
           break;
         case "/join":
@@ -211,4 +213,19 @@ public class ChatServer
     }
   }
 
+  static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
+    // If já usado --- error, se nao
+  }
+
+  static private void processJoin(SocketChannel sc, SelectionKey keySource) throws IOException {
+    // If já usado --- error, se nao
+  }
+
+  static private void processLeave(SocketChannel sc, SelectionKey keySource) throws IOException {
+    // If já usado --- error, se nao
+  }
+
+  static private void processBye(SocketChannel sc, SelectionKey keySource) throws IOException {
+    // If já usado --- error, se nao
+  }
 }
