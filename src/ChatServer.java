@@ -8,10 +8,12 @@ import java.util.*;
 class User {
   String name;
   SocketChannel sc;
+  State state;
 
   User (String name, SocketChannel sc) {
     this.name = name;
     this.sc = sc;
+    this.state = State.INIT;
   }
 }
 
@@ -23,10 +25,10 @@ class Room {
   }
 }
 
-class State {
-  boolean init = false;
-  boolean outside = false;
-  boolean inside = false;
+enum State { // User state
+  INIT, 
+  OUTSIDE, 
+  INSIDE;
 }
 
 public class ChatServer
