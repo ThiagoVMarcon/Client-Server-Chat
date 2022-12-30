@@ -5,6 +5,30 @@ import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
 
+class User {
+  String name;
+  SocketChannel sc;
+
+  User (String name, SocketChannel sc) {
+    this.name = name;
+    this.sc = sc;
+  }
+}
+
+class Room {
+  String name;
+
+  Room (String name) {
+    this.name = name;
+  }
+}
+
+class State {
+  boolean init = false;
+  boolean outside = false;
+  boolean inside = false;
+}
+
 public class ChatServer
 {
   // A pre-allocated buffer for the received data
@@ -64,7 +88,7 @@ public class ChatServer
             // It's an incoming connection.  Register this socket with
             // the Selector so we can listen for input on it
             Socket s = ss.accept();
-            System.out.println( "Got connection from "+s );
+            System.out.println( "Got connection from " + s );
 
             // Make sure to make it non-blocking, so we can use a selector
             // on it.
@@ -81,7 +105,7 @@ public class ChatServer
             try {
 
               // It's incoming data on a connection -- process it
-              sc = (SocketChannel)key.channel();
+              sc = (SocketChannel) key.channel();
               boolean ok = processInput( sc, selector, key );
 
               // If the connection is dead, remove it from the selector
@@ -106,7 +130,9 @@ public class ChatServer
 
               try {
                 sc.close();
-              } catch( IOException ie2 ) { System.out.println( ie2 ); }
+              } catch( IOException ie2 ) { 
+                  System.out.println( ie2 ); 
+              }
 
               System.out.println( "Closed "+sc );
             }
