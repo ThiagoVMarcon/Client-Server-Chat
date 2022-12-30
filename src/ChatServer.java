@@ -163,9 +163,7 @@ public class ChatServer
 
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
-    User actual = (User) keySource.attachment();
-
-    processMessage(message);
+    processMessage(sc, keySource, message);
     //System.out.print( message );
     if (keySource.attachment() == null) {
       keySource.attach(message);
@@ -187,13 +185,13 @@ public class ChatServer
   }
 
   // Process the message received from the socket
-  static private void processMessage(String message) throws IOException {
+  static private void processMessage(SocketChannel sc, SelectionKey keySource, String message) throws IOException {
     // The message is a command
     if(message.charAt(0) == '/') {
       String command[] = message.split(" ", 2);
       switch(command[0]) {
         case "/nick":
-          // nick name function (command[1], sc, key)
+          processNick(sc, keySource, command[1]);
           System.out.println("The nick is " + command[1]);
           break;
         case "/join":
@@ -215,6 +213,11 @@ public class ChatServer
 
   static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
     // If já usado --- error, se nao
+    User actual = (User) keySource.attachment();
+    actual.name = newName;
+    buffer.rewind();
+    byte[] name = actual.name.getBytes();
+    // buffer = ByteBuffer.wrap(name);  ----- ESCREVER O NAME PARA O BUFFER (NÃO FUNCIONA) - ARRUMAR
   }
 
   static private void processJoin(SocketChannel sc, SelectionKey keySource) throws IOException {
