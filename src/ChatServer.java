@@ -34,29 +34,29 @@ enum State { // User state
 public class ChatServer
 {
   // A pre-allocated buffer for the received data
-  static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+  static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
 
   // Decoder for incoming text -- assume UTF-8
   static private final Charset charset = Charset.forName("UTF8");
   static private final CharsetDecoder decoder = charset.newDecoder();
 
 
-  static public void main( String args[] ) throws Exception {
+  static public void main(String args[]) throws Exception {
     // Parse port from command line
-    int port = Integer.parseInt( args[0] );
+    int port = Integer.parseInt(args[0]);
     
     try {
       // Instead of creating a ServerSocket, create a ServerSocketChannel
       ServerSocketChannel ssc = ServerSocketChannel.open();
 
       // Set it to non-blocking, so we can use select
-      ssc.configureBlocking( false );
+      ssc.configureBlocking(false);
 
       // Get the Socket connected to this channel, and bind it to the
       // listening port
       ServerSocket ss = ssc.socket();
-      InetSocketAddress isa = new InetSocketAddress( port );
-      ss.bind( isa );
+      InetSocketAddress isa = new InetSocketAddress(port);
+      ss.bind(isa);
 
       // Create a new Selector for selecting
       Selector selector = Selector.open();
@@ -149,9 +149,8 @@ public class ChatServer
     }
   }
 
-
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput( SocketChannel sc, Selector selector, SelectionKey key_source ) throws IOException {
+  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey key_source) throws IOException {
     // Read the message to the buffer
     buffer.clear();
     sc.read( buffer );
@@ -164,7 +163,8 @@ public class ChatServer
 
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
-    System.out.print( message );
+    processMessage(message);
+    //System.out.print( message );
     if (key_source.attachment() == null) {
       key_source.attach(message);
     } 
@@ -174,13 +174,41 @@ public class ChatServer
       while(it.hasNext()) {
           SelectionKey key = it.next();
           if (!key.isAcceptable()) {
-            sc = (SocketChannel)key.channel();
+            sc = (SocketChannel) key.channel();
             buffer.rewind();
-            sc.write( buffer );
+            sc.write(buffer);
           }
         }
       }
 
     return true;
   }
+
+  // Process the message received from the socket
+  static private void processMessage(String message) throws IOException {
+    // The message is a command
+    if(message.charAt(0) == '/') {
+      String command[] = message.split(" ", 2);
+      switch(command[0]) {
+        case "/nick":
+          // nick name function
+          System.out.println("The nick is " + command[1]);
+          break;
+        case "/join":
+          // join room function
+          break;
+        case "/leave":
+          // leav room function
+          break;
+        case "/bye":
+          // bye function
+          break;
+      }
+    }
+    // The message is not a command
+    else {
+      // message function
+    }
+  }
+
 }
