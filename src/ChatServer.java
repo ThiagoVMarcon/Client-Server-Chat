@@ -10,7 +10,7 @@ class User {
   SocketChannel sc;
   State state;
 
-  User (String name, SocketChannel sc) {
+  User(String name, SocketChannel sc) {
     this.name = name;
     this.sc = sc;
     this.state = State.INIT;
@@ -19,20 +19,21 @@ class User {
 
 class Room {
   String name;
+  Set<User> UserList;
 
-  Room (String name) {
+  Room(String name) {
     this.name = name;
+    UserList = new HashSet<>();
   }
 }
 
 enum State { // User state
-  INIT, 
-  OUTSIDE, 
+  INIT,
+  OUTSIDE,
   INSIDE;
 }
 
-public class ChatServer
-{
+public class ChatServer {
   // A pre-allocated buffer for the received data
   static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
 
@@ -40,11 +41,12 @@ public class ChatServer
   static private final Charset charset = Charset.forName("UTF8");
   static private final CharsetDecoder decoder = charset.newDecoder();
 
+  static private final Map<String, User> UserMap = new HashMap<>();
 
   static public void main(String args[]) throws Exception {
     // Parse port from command line
     int port = Integer.parseInt(args[0]);
-    
+
     try {
       // Instead of creating a ServerSocket, create a ServerSocketChannel
       ServerSocketChannel ssc = ServerSocketChannel.open();
@@ -63,8 +65,8 @@ public class ChatServer
 
       // Register the ServerSocketChannel, so we can listen for incoming
       // connections
-      ssc.register( selector, SelectionKey.OP_ACCEPT );
-      System.out.println( "Listening on port "+port );
+      ssc.register(selector, SelectionKey.OP_ACCEPT);
+      System.out.println("Listening on port " + port);
 
       while (true) {
         // See if we've had any activity -- either an incoming connection,
@@ -87,18 +89,18 @@ public class ChatServer
           // What kind of activity is it?
           if (key.isAcceptable()) {
 
-            // It's an incoming connection.  Register this socket with
+            // It's an incoming connection. Register this socket with
             // the Selector so we can listen for input on it
             Socket s = ss.accept();
-            System.out.println( "Got connection from " + s );
+            System.out.println("Got connection from " + s);
 
             // Make sure to make it non-blocking, so we can use a selector
             // on it.
             SocketChannel sc = s.getChannel();
-            sc.configureBlocking( false );
+            sc.configureBlocking(false);
 
             // Register it with the selector, for reading
-            sc.register( selector, SelectionKey.OP_READ );
+            sc.register(selector, SelectionKey.OP_READ, new User("", sc));
 
           } else if (key.isReadable()) {
 
@@ -108,7 +110,7 @@ public class ChatServer
 
               // It's incoming data on a connection -- process it
               sc = (SocketChannel) key.channel();
-              boolean ok = processInput( sc, selector, key );
+              boolean ok = processInput(sc, selector, key);
 
               // If the connection is dead, remove it from the selector
               // and close it
@@ -118,25 +120,25 @@ public class ChatServer
                 Socket s = null;
                 try {
                   s = sc.socket();
-                  System.out.println( "Closing connection to "+s );
+                  System.out.println("Closing connection to " + s);
                   s.close();
-                } catch( IOException ie ) {
-                  System.err.println( "Error closing socket "+s+": "+ie );
+                } catch (IOException ie) {
+                  System.err.println("Error closing socket " + s + ": " + ie);
                 }
               }
 
-            } catch( IOException ie ) {
+            } catch (IOException ie) {
 
               // On exception, remove this channel from the selector
               key.cancel();
 
               try {
                 sc.close();
-              } catch( IOException ie2 ) { 
-                  System.out.println( ie2 ); 
+              } catch (IOException ie2) {
+                System.out.println(ie2);
               }
 
-              System.out.println( "Closed "+sc );
+              System.out.println("Closed " + sc);
             }
           }
         }
@@ -144,42 +146,31 @@ public class ChatServer
         // We remove the selected keys, because we've dealt with them.
         keys.clear();
       }
-    } catch( IOException ie ) {
-      System.err.println( ie );
+    } catch (IOException ie) {
+      System.err.println(ie);
     }
   }
 
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource) throws IOException {
+  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource)
+      throws IOException {
     // Read the message to the buffer
     buffer.clear();
-    sc.read( buffer );
+    sc.read(buffer);
     buffer.flip();
 
     // If no data, close the connection
-    if (buffer.limit()==0) {
+    if (buffer.limit() == 0) {
       return false;
     }
 
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
     processMessage(sc, keySource, message);
-    //System.out.print( message );
+    // System.out.print( message );
     if (keySource.attachment() == null) {
       keySource.attach(message);
-    }  
-    else { 
-      Set<SelectionKey> keys = selector.keys();
-      Iterator<SelectionKey> it = keys.iterator();
-      while(it.hasNext()) {
-          SelectionKey key = it.next();
-          if (!key.isAcceptable() && key != keySource) {
-            sc = (SocketChannel) key.channel();
-            buffer.rewind();
-            sc.write(buffer);
-          }
-        }
-      }
+    }
 
     return true;
   }
@@ -187,12 +178,13 @@ public class ChatServer
   // Process the message received from the socket
   static private void processMessage(SocketChannel sc, SelectionKey keySource, String message) throws IOException {
     // The message is a command
-    if(message.charAt(0) == '/') {
+    if (message.charAt(0) == '/') {
       String command[] = message.split(" ", 2);
-      switch(command[0]) {
+      switch (command[0]) {
         case "/nick":
-          processNick(sc, keySource, command[1]);
-          System.out.println("The nick is " + command[1]);
+          String nick = command[1].replaceAll("[\\n\\t ]", "");
+          nick = nick.substring(0, nick.length() - 1);
+          processNick(sc, keySource, nick);  
           break;
         case "/join":
           // join room function
@@ -207,17 +199,31 @@ public class ChatServer
     }
     // The message is not a command
     else {
-      // message function
+      buffer.clear();
+      buffer.put(message.getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
     }
   }
 
   static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
     // If já usado --- error, se nao
     User actual = (User) keySource.attachment();
+    if (UserMap.containsKey(newName)) {
+      {
+        buffer.clear();
+        buffer.put("ERROR\n".getBytes(charset));
+        buffer.flip();
+        sc.write(buffer);
+        return;
+      }
+    }    
     actual.name = newName;
-    buffer.rewind();
-    byte[] name = actual.name.getBytes();
-    // buffer = ByteBuffer.wrap(name);  ----- ESCREVER O NAME PARA O BUFFER (NÃO FUNCIONA) - ARRUMAR
+    UserMap.put(actual.name, actual);
+    buffer.clear();
+    buffer.put("OK\n".getBytes(charset));
+    buffer.flip();
+    sc.write(buffer);
   }
 
   static private void processJoin(SocketChannel sc, SelectionKey keySource) throws IOException {
