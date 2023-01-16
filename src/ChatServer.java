@@ -27,21 +27,23 @@ class Room {
   }
 }
 
-enum State { // User state
+enum State {
   INIT,
   OUTSIDE,
   INSIDE;
 }
 
 public class ChatServer {
+  // Map of users and rooms
+  static private final Map<String, User> UsersMap = new HashMap<>();
+  static private final Map<String, Room> RoomsMap = new HashMap<>();
+
   // A pre-allocated buffer for the received data
   static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
 
   // Decoder for incoming text -- assume UTF-8
   static private final Charset charset = Charset.forName("UTF8");
   static private final CharsetDecoder decoder = charset.newDecoder();
-
-  static private final Map<String, User> UserMap = new HashMap<>();
 
   static public void main(String args[]) throws Exception {
     // Parse port from command line
@@ -152,8 +154,7 @@ public class ChatServer {
   }
 
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource)
-      throws IOException {
+  static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource) throws IOException {
     // Read the message to the buffer
     buffer.clear();
     sc.read(buffer);
@@ -182,6 +183,7 @@ public class ChatServer {
       String command[] = message.split(" ", 2);
       switch (command[0]) {
         case "/nick":
+          // passar para dentro da função processNick
           String nick = command[1].replaceAll("[\\n\\t ]", "");
           nick = nick.substring(0, nick.length() - 1);
           processNick(sc, keySource, nick);  
@@ -207,9 +209,8 @@ public class ChatServer {
   }
 
   static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
-    // If já usado --- error, se nao
     User actual = (User) keySource.attachment();
-    if (UserMap.containsKey(newName)) {
+    if (UsersMap.containsKey(newName)) {
       {
         buffer.clear();
         buffer.put("ERROR\n".getBytes(charset));
@@ -219,7 +220,8 @@ public class ChatServer {
       }
     }    
     actual.name = newName;
-    UserMap.put(actual.name, actual);
+    actual.state = State.OUTSIDE;
+    UsersMap.put(actual.name, actual);
     buffer.clear();
     buffer.put("OK\n".getBytes(charset));
     buffer.flip();
