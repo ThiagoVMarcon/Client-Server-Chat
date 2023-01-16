@@ -199,13 +199,15 @@ public class ChatServer {
           break;
       }
     }
-    // The message is not a command
-    else {
-      buffer.clear();
-      buffer.put(message.getBytes(charset));
-      buffer.flip();
-      sc.write(buffer);
-    }
+    // The message is not a command 
+    // else {
+    //   buffer.clear();
+    //   buffer.put(message.getBytes(charset));
+    //   buffer.flip();
+    //   sc.write(buffer);
+    // }
+    message(sc, message);
+    
   }
 
   static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
@@ -219,6 +221,7 @@ public class ChatServer {
         return;
       }
     }    
+    UsersMap.remove(actual.name);
     actual.name = newName;
     actual.state = State.OUTSIDE;
     UsersMap.put(actual.name, actual);
@@ -229,14 +232,19 @@ public class ChatServer {
   }
 
   static private void processJoin(SocketChannel sc, SelectionKey keySource) throws IOException {
-    // If já usado --- error, se nao
+
   }
 
   static private void processLeave(SocketChannel sc, SelectionKey keySource) throws IOException {
-    // If já usado --- error, se nao
+    
   }
 
   static private void processBye(SocketChannel sc, SelectionKey keySource) throws IOException {
-    // If já usado --- error, se nao
+    
+  }
+
+  static private void message(SocketChannel sc, String message) throws IOException {
+    for (Map.Entry<String, User> set : UsersMap.entrySet()) {
+    } 
   }
 }
