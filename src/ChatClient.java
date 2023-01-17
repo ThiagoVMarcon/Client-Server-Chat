@@ -23,12 +23,6 @@ public class ChatClient {
     // A pre-allocated buffer for the received data
     static private final ByteBuffer buffer = ByteBuffer.allocate(16384);
     SocketChannel sc = null;
-    //List<String> command = new ArrayList<String>();
-    // command.add("/nick");
-    // command.add("/join");  
-    // command.add("/leave");
-    // command.add("/bye");
-    // command.add("/priv");
     java.util.List commands = Arrays.asList("/nick", "/join", "/leave", "/bye", "/priv");
 
     // Decoder for incoming text -- assume UTF-8
@@ -97,31 +91,28 @@ public class ChatClient {
     }
 
     private String friendlierFormat(String message) throws IOException {
-        if (message.charAt(message.length() - 1) == '\n') {
-			message = message.substring(0, message.length() - 1);
-		}
-        String ffmessage[] = message.split(" ", 3);
-        
+        // if (message.charAt(message.length() - 1) == '\n') {
+		// 	message = message.substring(0, message.length() - 1);
+		// }
+        String ffmessage[] = message.split(" ", 3);  
         switch (ffmessage[0]) {
-        //   case "NICK":   
-        //     message = 
-        //     break;
           case "MESSAGE":
             message = ffmessage[1] + ": " + ffmessage[2] + '\n';
             break;
           case "JOINED":
-            message = ffmessage[1] + " entrou na sala" + '\n';
+            message = ffmessage[1] + " entrou na sala";
             break;
           case "NEWNICK":
             message = ffmessage[1] + " mudou de nome para" + ffmessage[2] + '\n';
             break;
           case "LEFT":
-            message = ffmessage[1] + " saiu da sala" + '\n';
+            message = ffmessage[1] + " saiu da sala";
             break;
           case "BYE":
+            message = "até mais!" + '\n';
             break;
           case "PRIV":
-            message = "Mensagem privada de " + ffmessage[1] + ": " + ffmessage[2] + '\n';
+            message = ffmessage[1] + " (mensagem privada): " + ffmessage[2] + '\n';
             break;
         }
         return message;
@@ -131,10 +122,10 @@ public class ChatClient {
     public void run() throws IOException {
         while(true) {
             try {
-                    buffer.clear();
-                    sc.read(buffer);
-                    buffer.flip();
-                    printMessage(friendlierFormat(decoder.decode(buffer).toString()));
+                buffer.clear();
+                sc.read(buffer);
+                buffer.flip();
+                printMessage(friendlierFormat(decoder.decode(buffer).toString()));
             }
             catch (IOException e) {
                 System.out.println("Client Error: " + e);
