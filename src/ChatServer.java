@@ -9,21 +9,31 @@ class User {
   String name;
   SocketChannel sc;
   State state;
+  String room;
 
   User(String name, SocketChannel sc) {
     this.name = name;
     this.sc = sc;
     this.state = State.INIT;
+    this.room = null;
   }
 }
 
 class Room {
   String name;
-  Set<User> UserList;
+  List<String> RoomUsers;
 
   Room(String name) {
     this.name = name;
-    UserList = new HashSet<>();
+    this.RoomUsers = new ArrayList<>();
+  }
+
+  final void updateRoom(String u){
+    this.RoomUsers.add(u); 
+  }
+
+  final void removeFromRoom(String u){
+    this.RoomUsers.remove(u); 
   }
 }
 
@@ -118,15 +128,9 @@ public class ChatServer {
               // and close it
               if (!ok) {
                 key.cancel();
-
                 Socket s = null;
-                try {
-                  s = sc.socket();
-                  System.out.println("Closing connection to " + s);
-                  s.close();
-                } catch (IOException ie) {
-                  System.err.println("Error closing socket " + s + ": " + ie);
-                }
+                processBye(sc, key, true);
+                closeConnection(s, sc);
               }
 
             } catch (IOException ie) {
@@ -153,6 +157,16 @@ public class ChatServer {
     }
   }
 
+  static private void closeConnection(Socket s, SocketChannel sc){
+    try {
+      s = sc.socket();
+      System.out.println("Closing connection to " + s);
+      s.close();
+    } catch (IOException ie) {
+      System.err.println("Error closing socket " + s + ": " + ie);
+    }
+  }
+
   // Just read the message from the socket and send it to stdout
   static private boolean processInput(SocketChannel sc, Selector selector, SelectionKey keySource) throws IOException {
     // Read the message to the buffer
@@ -168,46 +182,52 @@ public class ChatServer {
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
     processMessage(sc, keySource, message);
-    // System.out.print( message );
-    if (keySource.attachment() == null) {
-      keySource.attach(message);
-    }
-
     return true;
   }
 
   // Process the message received from the socket
   static private void processMessage(SocketChannel sc, SelectionKey keySource, String message) throws IOException {
     // The message is a command
-    if (message.charAt(0) == '/') {
-      String command[] = message.split(" ", 2);
-      switch (command[0]) {
-        case "/nick":
-          // passar para dentro da função processNick
-          String nick = command[1].replaceAll("[\\n\\t ]", "");
-          nick = nick.substring(0, nick.length() - 1);
-          processNick(sc, keySource, nick);  
-          break;
-        case "/join":
-          // join room function
-          break;
-        case "/leave":
-          // leav room function
-          break;
-        case "/bye":
-          // bye function
-          break;
+    if (message.charAt(0) == '/' && message.charAt(1) != '/') {      
+      if(message.contains(" ")){
+        String command[] = message.split(" ", 2);
+        String nick = command[1].replaceAll("[\\n\\t ]", "");
+        nick = nick.substring(0, nick.length() - 1);
+        if(nick.length() == 0){
+          buffer.clear();
+          buffer.put("ERROR\n".getBytes(charset));
+          buffer.flip();
+          sc.write(buffer);
+          return;
+        }  
+        switch (command[0]) {
+          case "/nick":   
+            processNick(sc, keySource, nick);  
+            break;
+          case "/join":
+            processJoin(sc, keySource, nick);
+            break;
+          case "/priv":
+            break;
+        }
+      }
+      else {
+        switch(message.substring(0, message.length()-2)){
+          case "/leave":
+            processLeave(sc, keySource, false);
+            break;
+          case "/bye":
+          processBye(sc, keySource, false);
+            break;
+        }
       }
     }
     // The message is not a command 
-    // else {
-    //   buffer.clear();
-    //   buffer.put(message.getBytes(charset));
-    //   buffer.flip();
-    //   sc.write(buffer);
-    // }
-    message(sc, message);
-    
+    else {
+      if(message.charAt(0) == '/')
+        message = message.substring(1, message.length());
+      message(sc, keySource, message);
+    }
   }
 
   static private void processNick(SocketChannel sc, SelectionKey keySource, String newName) throws IOException {
@@ -222,8 +242,25 @@ public class ChatServer {
       }
     }    
     UsersMap.remove(actual.name);
+    String oldNick = actual.name;
     actual.name = newName;
-    actual.state = State.OUTSIDE;
+    if(actual.state == State.INSIDE){
+      Room updateRoom = RoomsMap.get(actual.room);
+      updateRoom.updateRoom(actual.name);
+      updateRoom.removeFromRoom(oldNick);
+      RoomsMap.put(actual.room, updateRoom);
+      for (String user : RoomsMap.get(actual.room).RoomUsers) {
+        if(actual.name == user)
+          continue;
+        User cur = UsersMap.get(user);
+        buffer.clear();
+        buffer.put(("NEWNICK " + oldNick + " " + actual.name + "\n").getBytes(charset));
+        buffer.flip();
+        cur.sc.write(buffer);
+      } 
+    }
+    if(actual.state == State.INIT)
+      actual.state = State.OUTSIDE;
     UsersMap.put(actual.name, actual);
     buffer.clear();
     buffer.put("OK\n".getBytes(charset));
@@ -231,20 +268,120 @@ public class ChatServer {
     sc.write(buffer);
   }
 
-  static private void processJoin(SocketChannel sc, SelectionKey keySource) throws IOException {
-
-  }
-
-  static private void processLeave(SocketChannel sc, SelectionKey keySource) throws IOException {
+  static private void processJoin(SocketChannel sc, SelectionKey keySource, String roomName) throws IOException {
     
+    User joining = (User) keySource.attachment();
+
+    if(joining.state == State.INIT){
+      buffer.clear();
+      buffer.put("ERROR\n".getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
+      return;
+    }
+    if((!roomName.equals(joining.room)) == (joining.state == State.INSIDE)){
+      processLeave(sc, keySource, true);
+      processJoin(sc, keySource, roomName);
+      return;
+    }
+    if(!RoomsMap.keySet().contains(roomName)){ 
+      Room newRoom = new Room(roomName);
+      
+      newRoom.updateRoom(joining.name);
+      RoomsMap.put(roomName, newRoom);
+    }
+    else{
+      Room joiningRoom = RoomsMap.get(roomName);
+      if(joiningRoom.RoomUsers.contains(joining.name)){
+        buffer.clear();
+        buffer.put("ERROR\n".getBytes(charset));
+        buffer.flip();
+        sc.write(buffer);
+        return;
+      }
+      joiningRoom.updateRoom(joining.name);
+      RoomsMap.put(roomName, joiningRoom);
+    }
+    joining.room = roomName;
+    joining.state = State.INSIDE;
+    UsersMap.put(joining.name, joining);
+    buffer.clear();
+    buffer.put("OK\n".getBytes(charset));
+    buffer.flip();
+    sc.write(buffer);
+    for(String user : RoomsMap.get(roomName).RoomUsers){
+      if (user != joining.name){
+        buffer.clear();
+        buffer.put(("JOINED " + joining.name + "\n").getBytes(charset));
+        buffer.flip();
+        UsersMap.get(user).sc.write(buffer);
+      }
+    }
   }
 
-  static private void processBye(SocketChannel sc, SelectionKey keySource) throws IOException {
-    
+  static private void processLeave(SocketChannel sc, SelectionKey keySource, Boolean joiningOther) throws IOException {
+    User leaving = (User) keySource.attachment();
+    if(leaving.state != State.INSIDE){
+      buffer.clear();
+      buffer.put("ERROR\n".getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
+      return;
+    }
+    Room leavingRoom = RoomsMap.get(leaving.room);
+    leavingRoom.removeFromRoom(leaving.name);
+    RoomsMap.put(leaving.room, leavingRoom);
+    for(String user : RoomsMap.get(leaving.room).RoomUsers){
+      if(leaving.name != user){
+        buffer.clear();
+        buffer.put(("LEFT " + leaving.name + "\n").getBytes(charset));
+        buffer.flip();
+        UsersMap.get(user).sc.write(buffer);
+      }
+    }
+    leaving.room = null;
+    leaving.state = State.OUTSIDE;
+    UsersMap.put(leaving.name, leaving);
+    if(!joiningOther){
+      buffer.clear();
+      buffer.put("OK\n".getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
+    }
   }
 
-  static private void message(SocketChannel sc, String message) throws IOException {
-    for (Map.Entry<String, User> set : UsersMap.entrySet()) {
+  static private void processBye(SocketChannel sc, SelectionKey keySource, Boolean dc) throws IOException {
+    User u = (User) keySource.attachment();
+    if(u.state == State.INSIDE)
+      processLeave(sc, keySource, true);
+    UsersMap.remove(u.name);
+    if(!dc){
+      buffer.clear();
+      buffer.put("BYE\n".getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
+    }
+    closeConnection(null, sc);
+  }
+
+  static private void message(SocketChannel sc, SelectionKey keySource, String message) throws IOException {
+    User sender = (User) keySource.attachment();
+    if(sender.state != State.INSIDE){
+      buffer.clear();
+      buffer.put("ERROR\n".getBytes(charset));
+      buffer.flip();
+      sc.write(buffer);
+      return;
+    }
+    // System.out.println(sender.name + " " + sender.room + " " + sender.state);
+    for (String user : RoomsMap.get(sender.room).RoomUsers) {
+      if(sender.name == user)
+        continue;
+      User cur = UsersMap.get(user);
+      buffer.clear();
+      buffer.put(("MESSAGE " + sender.name + " " + message).getBytes(charset));
+      buffer.flip();
+      cur.sc.write(buffer);
     } 
   }
 }
