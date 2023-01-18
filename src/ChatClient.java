@@ -80,38 +80,39 @@ public class ChatClient {
     public void newMessage(String message) throws IOException {
         // PREENCHER AQUI com código que envia a mensagem ao servidor
         // tratar comandos
-		// if (message.charAt(0) == '/' && message.charAt(1) != '/') {
-		// 	String notCommand[] = message.split(" ", 2);
-        //     if (!commands.contains(notCommand[0])) {
-		// 		message = "/" + message;
-		// 	}
+		if ((message.charAt(0) == '/')) {
+			String notCommand[] = message.split(" ", 2);
+            if (!commands.contains(notCommand[0])) {
+				message = "/" + message;
+			}
+        }
         buffer.clear();
         sc.write(charset.encode(message + '\n'));
-        //}
     }
 
     private String friendlierFormat(String message) throws IOException {
-        // if (message.charAt(message.length() - 1) == '\n') {
-		// 	message = message.substring(0, message.length() - 1);
-		// }
         String ffmessage[] = message.split(" ", 3);  
-        switch (ffmessage[0]) {
+        switch (ffmessage[0].replace("\n", "")) {
           case "MESSAGE":
-            message = ffmessage[1] + ": " + ffmessage[2] + '\n';
+            ffmessage[2].replace("\n", "");
+            message = ffmessage[1] + ": " + ffmessage[2];
             break;
           case "JOINED":
-            message = ffmessage[1] + " entrou na sala";
+            message = ffmessage[1].replace("\n", "") + " entrou na sala\n";
             break;
           case "NEWNICK":
-            message = ffmessage[1] + " mudou de nome para" + ffmessage[2] + '\n';
+            ffmessage[2].replace("\n", "");
+            message = ffmessage[1] + " mudou de nome para " + ffmessage[2] + '\n';
             break;
           case "LEFT":
-            message = ffmessage[1] + " saiu da sala";
+            message = ffmessage[1].replace("\n", "") + " saiu da sala\n";
             break;
           case "BYE":
             message = "até mais!" + '\n';
+            frame.dispose();
             break;
-          case "PRIV":
+          case "PRIVATE":
+            ffmessage[2].replace("\n", "");
             message = ffmessage[1] + " (mensagem privada): " + ffmessage[2] + '\n';
             break;
         }
